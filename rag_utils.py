@@ -106,7 +106,7 @@ def llm_config() -> dict:
         return {
             "base_url": _setting("LLM_BASE_URL", "https://api.groq.com/openai/v1"),
             "api_key": api_key,
-            "model": _setting("LLM_MODEL", "llama-3.1-8b-instant"),
+            "model": _setting("LLM_MODEL", "openai/gpt-oss-20b"),
         }
     return {
         "base_url": _setting("LLM_BASE_URL", "http://localhost:11434/v1"),
@@ -126,12 +126,19 @@ def stream_llm(prompt: str, temperature: float = 0.3, max_tokens: int = 600):
     """Yield the answer chunk by chunk (to be used with st.write_stream)."""
     cfg = llm_config()
     client = _llm_client(cfg["base_url"], cfg["api_key"])
+    extra = {}
+    if "gpt-oss" in cfg["model"]:
+        # Reasoning model: hidden reasoning tokens count against max_tokens,
+        # so keep reasoning short and leave room for the visible answer.
+        extra = {"reasoning_effort": "low"}
+        max_tokens += 1000
     stream = client.chat.completions.create(
         model=cfg["model"],
         messages=[{"role": "user", "content": prompt}],
         temperature=temperature,
         max_tokens=max_tokens,
         stream=True,
+        **extra,
     )
     for chunk in stream:
         if chunk.choices and chunk.choices[0].delta.content:
